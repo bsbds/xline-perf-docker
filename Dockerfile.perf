@@ -1,0 +1,12 @@
+FROM ubuntu:latest
+
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ARG KERNEL_VERSION
+RUN echo "Building for kernel version: $KERNEL_VERSION"
+RUN apt-get update && apt-get install -y linux-tools-common linux-tools-generic linux-tools-6.8.0-49 git cargo inotify-tools
+# force to use this perf version, the original /usr/bin/perf will check if the perf version matches the kernel
+RUN rm /usr/bin/perf && ln -s /usr/lib/linux-tools/6.8.0-49-generic/perf /usr/bin/perf
+RUN git clone https://github.com/gimli-rs/addr2line && cd addr2line && cargo build --release --bin addr2line --features=bin && cp target/release/addr2line /usr/bin/addr2line 
+RUN git clone https://github.com/brendangregg/FlameGraph.git /FlameGraph
+ENV PATH="/FlameGraph:${PATH}"

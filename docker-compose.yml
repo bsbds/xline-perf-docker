@@ -1,0 +1,98 @@
+x-ulimits: &default-ulimits
+  ulimits:
+    nproc: 100000
+    nofile:
+      soft: 100000
+      hard: 100000
+
+x-common-server: &common-server-config
+  privileged: true
+  cap_add:
+    - SYS_ADMIN
+    - IPC_LOCK
+  depends_on:
+    - init_notify
+
+services:
+  init_notify:
+    image: xline-bench:latest
+    hostname: init_notify
+    command: touch /perf/notify
+    volumes:
+      - ./perf_data:/perf
+
+  server1:
+    <<: [*default-ulimits, *common-server-config]
+    image: xline-bench:latest
+    hostname: server1
+    command: ["/start-server.sh", "1"]
+    environment:
+      - XLINE_SERVER_CONFIG=/etc/xline/xline1.conf
+      - PERF_MODE
+    volumes:
+      - ./start-server.sh:/start-server.sh
+      - ./config/xline1.conf:/etc/xline/xline1.conf
+      - ./perf_data:/perf
+    networks:
+      benchmark_net:
+        ipv4_address: 172.20.0.2
+
+  server2:
+    <<: [*default-ulimits, *common-server-config]
+    image: xline-bench:latest
+    hostname: server2
+    command: ["/start-server.sh", "2"]
+    environment:
+      - XLINE_SERVER_CONFIG=/etc/xline/xline2.conf
+      - PERF_MODE
+    volumes:
+      - ./start-server.sh:/start-server.sh
+      - ./config/xline2.conf:/etc/xline/xline2.conf
+      - ./perf_data:/perf
+    networks:
+      benchmark_net:
+        ipv4_address: 172.20.0.3
+
+  server3:
+    <<: [*default-ulimits, *common-server-config]
+    image: xline-bench:latest
+    hostname: server3
+    command: ["/start-server.sh", "3"]
+    environment:
+      - XLINE_SERVER_CONFIG=/etc/xline/xline3.conf
+      - PERF_MODE
+    volumes:
+      - ./start-server.sh:/start-server.sh
+      - ./config/xline3.conf:/etc/xline/xline3.conf
+      - ./perf_data:/perf
+    networks:
+      benchmark_net:
+        ipv4_address: 172.20.0.4
+
+  benchmark:
+    <<: *default-ulimits
+    image: xline-bench:latest
+    hostname: benchmark
+    environment:
+      - CLIENTS=100
+      - TOTAL=30000
+    command: [
+      "/bin/bash", "-c",
+      "sleep 1 && ./benchmark --endpoints 'node1=172.20.0.2:2379,node2=172.20.0.3:2379,node3=172.20.0.4:2379' --use-curp --clients=$$CLIENTS put --key-size=8 --val-size=256 --total=$$TOTAL --key-space-size=10000000 && echo 1 > /perf/notify"
+    ]
+    networks:
+      benchmark_net:
+        ipv4_address: 172.20.0.6
+    volumes:
+      - ./perf_data:/perf
+    depends_on:
+      - server1
+      - server2
+      - server3
+
+networks:
+  benchmark_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
